@@ -28,7 +28,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // Save the API key to local storage
-  void _saveApiKey() async {
+  Future<void> _saveApiKey() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString('api_key', _apiKeyController.text);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -37,7 +37,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: Colors.green,
       ),
     );
-    _loadApiKey();
   }
 
   @override
@@ -54,7 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _saveApiKey,
+              onPressed: () async => await _saveApiKey(),
               child: const Text('Save API Key'),
             ),
             if (_savedApiKey != null) ...[

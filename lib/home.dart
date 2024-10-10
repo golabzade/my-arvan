@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:my_arven/settings.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,19 +10,66 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  _MyHomePageState() {
+  bool _isLoading = true;
+  List<dynamic> _apiResult = [];
+
+  @override
+  void initState() {
+    super.initState();
     _fetchData();
   }
 
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: const Text('MyArvan (Unofficial)'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: _fetchData,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _apiResult.isEmpty
+                ? Center(
+                    child: ElevatedButton(
+                        onPressed: _fetchData, child: const Text('Reload')))
+                : ListView.builder(
+                    itemCount: _apiResult.length,
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        title: Text(_apiResult[index]['datacenter']),
+                        subtitle: Text(_apiResult[index]['count'].toString()),
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          '/dedicated_servers',
+                          arguments: _apiResult[index]['datacenter'],
+                        ),
+                      );
+                    },
+                    physics: const AlwaysScrollableScrollPhysics(),
+                  ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => Navigator.pushNamed(context, '/settings'),
+        tooltip: 'Settings',
+        child: const Icon(Icons.settings),
+      ),
+    );
+  }
+
   Future<void> _fetchData() async {
+    setState(() {
+      _isLoading = true;
+    });
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? apiKey = prefs.getString('api_key');
 
-    if (apiKey == null || apiKey == '') {
+    if (apiKey == null || apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('API Key not found!')),
       );
-      Navigator.pushNamed(context, '/api_key_input');
+      Navigator.pushNamed(context, '/settings');
       return;
     }
 
@@ -38,7 +86,8 @@ class _MyHomePageState extends State<MyHomePage> {
         // Parse the response and show it in a ListView
         final List<dynamic> data = json.decode(response.body)['data'];
         setState(() {
-          _apiResults = data;
+          _isLoading = false;
+          _apiResult = data;
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -49,44 +98,12 @@ class _MyHomePageState extends State<MyHomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to fetch data: $e')),
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+        _apiResult = [];
+      });
     }
-  }
-
-  List<dynamic> _apiResults = [];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: const Text('MyArvan (Unofficial)'),
-      ),
-      body: _apiResults.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _fetchData,
-              child: ListView.builder(
-                itemCount: _apiResults.length,
-                itemBuilder: (context, index) {
-                  return ListTile(
-                    title:
-                        Text(_apiResults[index]['datacenter']), // Example key
-                    subtitle: Text(
-                        _apiResults[index]['count'].toString()), // Example key
-                    onTap: () => Navigator.pushNamed(
-                        context, '/dedicated_servers',
-                        arguments: _apiResults[index]['datacenter']),
-                  );
-                },
-                physics: const AlwaysScrollableScrollPhysics(),
-              ),
-            ),
-
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/settings'),
-        tooltip: 'Settings',
-        child: const Icon(Icons.settings),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
+    return;
   }
 }
