@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:my_arven/dedicated_servers.dart';
+import 'package:my_arven/servers.dart';
 import 'package:my_arven/settings.dart';
 import 'package:my_arven/home.dart';
 
@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => MyHomePage(),
         '/settings': (context) => SettingsScreen(),
-        '/dedicated_servers': (context) => DedicatedServers(),
+        '/servers': (context) => DedicatedServers(),
       },
     );
   }

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:my_arven/settings.dart';
+import 'package:my_arven/models/region.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class MyHomePage extends StatefulWidget {
   @override
@@ -10,8 +11,8 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  bool _isLoading = true;
-  List<dynamic> _apiResult = [];
+  bool _isLoading = false;
+  RegionList _regionList = RegionList(data: []);
 
   @override
   void initState() {
@@ -30,20 +31,43 @@ class _MyHomePageState extends State<MyHomePage> {
         onRefresh: _fetchData,
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : _apiResult.isEmpty
+            : _regionList.data.isEmpty
                 ? Center(
-                    child: ElevatedButton(
-                        onPressed: _fetchData, child: const Text('Reload')))
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('Nothing Found!'),
+                          ElevatedButton(
+                              onPressed: _fetchData,
+                              child: const Text('Reload')),
+                        ]),
+                  )
                 : ListView.builder(
-                    itemCount: _apiResult.length,
+                    itemCount: _regionList.data.length,
                     itemBuilder: (context, index) {
                       return ListTile(
-                        title: Text(_apiResult[index]['datacenter']),
-                        subtitle: Text(_apiResult[index]['count'].toString()),
+                        title: Row(
+                          children: [
+                            Badge(
+                              label: Text(_regionList.data[index].state),
+                              backgroundColor:
+                                  _regionList.data[index].state == 'up'
+                                      ? Colors.green
+                                      : Colors.red,
+                              alignment: AlignmentDirectional.topEnd,
+                              offset: const Offset(15, -5),
+                              child: Text(_regionList.data[index].nameEn),
+                            )
+                          ],
+                        ),
+                        subtitle: Text(_regionList.data[index].cityEn),
+                        leading: CircleAvatar(
+                          child: SvgPicture.network(_regionList.data[index].image),
+                        ),
                         onTap: () => Navigator.pushNamed(
                           context,
-                          '/dedicated_servers',
-                          arguments: _apiResult[index]['datacenter'],
+                          '/servers',
+                          arguments: _regionList.data[index],
                         ),
                       );
                     },
@@ -69,13 +93,16 @@ class _MyHomePageState extends State<MyHomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('API Key not found!')),
       );
+      setState(() {
+        _isLoading = false;
+      });
       Navigator.pushNamed(context, '/settings');
       return;
     }
 
     try {
       final response = await http.get(
-        Uri.parse('https://napi.arvancloud.ir/ecc/v1/dedicated-servers/counts'),
+        Uri.parse('https://napi.arvancloud.ir/ecc/v2/datacenters'),
         headers: {
           'Authorization': 'apikey ${apiKey}',
           'Accept': 'application/json'
@@ -83,15 +110,17 @@ class _MyHomePageState extends State<MyHomePage> {
       );
 
       if (response.statusCode == 200) {
-        // Parse the response and show it in a ListView
-        final List<dynamic> data = json.decode(response.body)['data'];
+        final RegionList regionList = RegionList.fromJson(json.decode(response.body));
         setState(() {
           _isLoading = false;
-          _apiResult = data;
+          _regionList = regionList;
         });
+        return;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${response.statusCode}')),
+          SnackBar(
+              content: Text(
+                  'Error: ${response.statusCode}, ${json.decode(response.body)['message']}')),
         );
       }
     } catch (e) {
@@ -101,9 +130,7 @@ class _MyHomePageState extends State<MyHomePage> {
     } finally {
       setState(() {
         _isLoading = false;
-        _apiResult = [];
       });
     }
-    return;
   }
 }

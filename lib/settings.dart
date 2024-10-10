@@ -55,11 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ElevatedButton(
               onPressed: () async => await _saveApiKey(),
               child: const Text('Save API Key'),
-            ),
-            if (_savedApiKey != null) ...[
-              const SizedBox(height: 20),
-              Text('Saved API Key: $_savedApiKey'),
-            ]
+            )
           ],
         ),
       ),
