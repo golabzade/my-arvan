@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'package:my_arven/models/region.dart';
+import 'package:my_arven/models/server.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class DedicatedServers extends StatefulWidget {
+class CloudServers extends StatefulWidget {
   @override
-  State<DedicatedServers> createState() => _DedicatedServersState();
+  State<CloudServers> createState() => _CloudServersState();
 }
 
-class _DedicatedServersState extends State<DedicatedServers> {
+class _CloudServersState extends State<CloudServers> {
   Region? _datacenter;
   bool _isLoading = false;
-  List<dynamic> _apiResult = [];
+  ServerList _serverList = ServerList(data: []);
 
   @override
   Widget build(BuildContext context) {
@@ -29,28 +31,37 @@ class _DedicatedServersState extends State<DedicatedServers> {
         onRefresh: _fetchData,
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : _apiResult.isEmpty
+            : _serverList.data.isEmpty
                 ? Center(
-                  child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('Nothing Found!'),
-                        ElevatedButton(
-                            onPressed: _fetchData, child: const Text('Reload')),
-                      ]),
-                )
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('Nothing Found!'),
+                          ElevatedButton(
+                              onPressed: _fetchData,
+                              child: const Text('Reload')),
+                        ]),
+                  )
                 : ListView.builder(
-                    itemCount: _apiResult.length,
+                    itemCount: _serverList.data.length,
                     itemBuilder: (context, index) {
                       return ListTile(
-                        title: Text(_apiResult[index]['datacenter']),
-                        subtitle: Text(_apiResult[index]['count'].toString()),
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          '/servers/info',
-                          arguments: _apiResult[index]['datacenter'],
-                        ),
-                      );
+                          title: Text(_serverList.data[index].name),
+                          subtitle:
+                              Text(_serverList.data[index].status.toString()),
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              color: const Color(0xffe9edf5),
+                            ),
+                            child: SvgPicture.asset(
+                                'os/${_serverList.data[index].image.os}.svg'),
+                          ),
+                          onTap: () => ScaffoldMessenger.of(context)
+                              .showSnackBar(const SnackBar(
+                                  content: Text(
+                                      'Hey, Don`t be hasty, We`ll get to that!'))));
                     },
                     physics: const AlwaysScrollableScrollPhysics(),
                   ),
@@ -76,11 +87,11 @@ class _DedicatedServersState extends State<DedicatedServers> {
       );
 
       if (response.statusCode == 200) {
-        // Parse the response and show it in a ListView
-        final List<dynamic> data = json.decode(response.body)['data'];
+        final ServerList serverList =
+            ServerList.fromJson(json.decode(response.body));
         setState(() {
           _isLoading = false;
-          _apiResult = data;
+          _serverList = serverList;
         });
         return;
       } else {

@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => MyHomePage(),
         '/settings': (context) => SettingsScreen(),
-        '/servers': (context) => DedicatedServers(),
+        '/servers': (context) => CloudServers(),
       },
     );
   }
