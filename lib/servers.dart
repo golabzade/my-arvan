@@ -56,7 +56,7 @@ class _CloudServersState extends State<CloudServers> {
                               color: const Color(0xffe9edf5),
                             ),
                             child: SvgPicture.asset(
-                                'os/${_serverList.data[index].image.os}.svg'),
+                                'assets/os/${_serverList.data[index].image.os}.svg'),
                           ),
                           onTap: () => ScaffoldMessenger.of(context)
                               .showSnackBar(const SnackBar(
