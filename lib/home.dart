@@ -37,6 +37,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Text('Nothing Found!'),
+                          const SizedBox(height: 16),
                           ElevatedButton(
                               onPressed: _fetchData,
                               child: const Text('Reload')),
@@ -62,7 +63,8 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                         subtitle: Text(_regionList.data[index].cityEn),
                         leading: CircleAvatar(
-                          child: SvgPicture.network(_regionList.data[index].image),
+                          child:
+                              SvgPicture.network(_regionList.data[index].image),
                         ),
                         onTap: () => Navigator.pushNamed(
                           context,
@@ -110,7 +112,8 @@ class _MyHomePageState extends State<MyHomePage> {
       );
 
       if (response.statusCode == 200) {
-        final RegionList regionList = RegionList.fromJson(json.decode(response.body));
+        final RegionList regionList =
+            RegionList.fromJson(json.decode(utf8.decode(response.bodyBytes)));
         setState(() {
           _isLoading = false;
           _regionList = regionList;
@@ -119,13 +122,16 @@ class _MyHomePageState extends State<MyHomePage> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+              backgroundColor: Colors.red,
               content: Text(
-                  'Error: ${response.statusCode}, ${json.decode(response.body)['message']}')),
+                  'Error: ${response.statusCode}, ${json.decode(utf8.decode(response.bodyBytes))['message']}')),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to fetch data: $e')),
+        SnackBar(
+            backgroundColor: Colors.red,
+            content: Text('Failed to fetch data: $e')),
       );
     } finally {
       setState(() {

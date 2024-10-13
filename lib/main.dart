@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:my_arven/server_details.dart';
 import 'package:my_arven/servers.dart';
 import 'package:my_arven/settings.dart';
 import 'package:my_arven/home.dart';
@@ -25,6 +26,7 @@ class MyApp extends StatelessWidget {
         '/': (context) => MyHomePage(),
         '/settings': (context) => SettingsScreen(),
         '/servers': (context) => CloudServers(),
+        '/servers/details': (context) => CloudServerDetails(),
       },
     );
   }

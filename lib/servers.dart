@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'package:my_arven/models/region.dart';
 import 'package:my_arven/models/server.dart';
+import 'package:my_arven/models/server_with_region.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -12,20 +13,20 @@ class CloudServers extends StatefulWidget {
 }
 
 class _CloudServersState extends State<CloudServers> {
-  Region? _datacenter;
+  Region? _region;
   bool _isLoading = false;
   ServerList _serverList = ServerList(data: []);
 
   @override
   Widget build(BuildContext context) {
-    if (_datacenter == null) {
-      _datacenter = ModalRoute.of(context)!.settings.arguments as Region;
+    if (_region == null) {
+      _region = ModalRoute.of(context)!.settings.arguments as Region;
       _fetchData();
     }
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text('Data Center: ${_datacenter?.nameEn}'),
+        title: Text('Data Center: ${_region?.nameEn}'),
       ),
       body: RefreshIndicator(
         onRefresh: _fetchData,
@@ -37,6 +38,7 @@ class _CloudServersState extends State<CloudServers> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Text('Nothing Found!'),
+                          const SizedBox(height: 16),
                           ElevatedButton(
                               onPressed: _fetchData,
                               child: const Text('Reload')),
@@ -58,10 +60,13 @@ class _CloudServersState extends State<CloudServers> {
                             child: SvgPicture.asset(
                                 'assets/os/${_serverList.data[index].image.os}.svg'),
                           ),
-                          onTap: () => ScaffoldMessenger.of(context)
-                              .showSnackBar(const SnackBar(
-                                  content: Text(
-                                      'Hey, Don`t be hasty, We`ll get to that!'))));
+                          onTap: () => Navigator.pushNamed(
+                                context,
+                                '/servers/details',
+                                arguments: ServerWithRegion(
+                                    server: _serverList.data[index],
+                                    region: _region),
+                              ));
                     },
                     physics: const AlwaysScrollableScrollPhysics(),
                   ),
@@ -79,7 +84,7 @@ class _CloudServersState extends State<CloudServers> {
     try {
       final response = await http.get(
         Uri.parse(
-            'https://napi.arvancloud.ir/ecc/v1/regions/${_datacenter?.code ?? ''}/servers'),
+            'https://napi.arvancloud.ir/ecc/v1/regions/${_region?.code ?? ''}/servers'),
         headers: {
           'Authorization': 'apikey ${apiKey}',
           'Accept': 'application/json'
@@ -88,7 +93,7 @@ class _CloudServersState extends State<CloudServers> {
 
       if (response.statusCode == 200) {
         final ServerList serverList =
-            ServerList.fromJson(json.decode(response.body));
+            ServerList.fromJson(json.decode(utf8.decode(response.bodyBytes)));
         setState(() {
           _isLoading = false;
           _serverList = serverList;
@@ -97,13 +102,16 @@ class _CloudServersState extends State<CloudServers> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+              backgroundColor: Colors.red,
               content: Text(
-                  'Error: ${response.statusCode}, ${json.decode(response.body)['message']}')),
+                  'Error: ${response.statusCode}, ${json.decode(utf8.decode(response.bodyBytes))['message']}')),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to fetch data: $e')),
+        SnackBar(
+            backgroundColor: Colors.red,
+            content: Text('Failed to fetch data: $e')),
       );
     } finally {
       setState(() {
