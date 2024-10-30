@@ -91,6 +91,36 @@ class _CloudServerDetailsState extends State<CloudServerDetails> {
                                   color: const Color(0xfff5f7fa),
                                   borderRadius: BorderRadius.circular(16)),
                               padding: const EdgeInsets.all(16),
+                              child: Center(
+                                child: Row(
+                                  children: [
+                                    Column(
+                                      children: [
+                                            const Text(
+                                              'IP Addresses',
+                                              style: TextStyle(
+                                                fontSize: 24,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                          ] +
+                                          (_server?.addresses.data
+                                                  .map<Text>((ServerAddress
+                                                          address) =>
+                                                      Text(
+                                                          'ipv${address.version}: ${address.addr}'))
+                                                  .toList() ??
+                                              []),
+                                    ),
+                                  ],
+                                ),
+                              )),
+                          const SizedBox(height: 16),
+                          Container(
+                              decoration: BoxDecoration(
+                                  color: const Color(0xfff5f7fa),
+                                  borderRadius: BorderRadius.circular(16)),
+                              padding: const EdgeInsets.all(16),
                               child: Column(children: [
                                 Row(
                                     mainAxisAlignment:
@@ -231,6 +261,10 @@ class _CloudServerDetailsState extends State<CloudServerDetails> {
     );
   }
 
+  List<Widget> getListOfAddressesWidgets() {
+    return [Text(_server?.addresses.data[0].addr ?? '')];
+  }
+
   Future<void> _fetchData() async {
     setState(() {
       _isLoading = true;
@@ -249,7 +283,8 @@ class _CloudServerDetailsState extends State<CloudServerDetails> {
       );
 
       if (response.statusCode == 200) {
-        final Server server = Server.fromJson(json.decode(response.body)['data']);
+        final Server server =
+            Server.fromJson(json.decode(response.body)['data']);
         setState(() {
           _isLoading = false;
           _server = server;

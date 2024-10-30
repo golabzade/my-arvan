@@ -67,7 +67,7 @@ class Server {
 }
 
 enum ServerStatus {
-  shelvedOffloaded, active, reboot, shutoff;
+  shelvedOffloaded, active, reboot, shutoff, build;
   
   @override
   String toString() {
@@ -80,6 +80,8 @@ enum ServerStatus {
         return 'Active';
       case 'reboot':
         return 'Reboot';
+      case 'build':
+        return 'Build';
       default:
       return 'error on enum ServerStatus.toString()';
     }
@@ -95,6 +97,8 @@ enum ServerStatus {
         return ServerStatus.active;
       case 'REBOOT':
         return ServerStatus.reboot;
+      case 'BUILD':
+        return ServerStatus.build;
       default:
     throw ArgumentError.value(str, "name", "No enum value with that name");
     }
@@ -102,28 +106,31 @@ enum ServerStatus {
 }
 
 class ServerAddresses {
-  List<ServerAddressePublic213> public213;
+  List<ServerAddress> data;
 
   ServerAddresses({
-    required this.public213,
+    required this.data,
   });
 
   factory ServerAddresses.fromJson(Map<String, dynamic> json) {
-    Iterable list = json['public213'];
-    List<ServerAddressePublic213> public213 = list.map((i) => ServerAddressePublic213.fromJson(i)).toList();
-
-    return ServerAddresses(public213: public213);
+    List<ServerAddress> data = [];
+    for (String key in json.keys) {
+      data.addAll(json[key].map<ServerAddress>((i) {
+        return ServerAddress.fromJson(i);
+      }).toList());
+    }
+    return ServerAddresses(data: data);
   }
 }
 
-class ServerAddressePublic213 {
+class ServerAddress {
   String macAddr;
   String version;
   String addr;
   String type;
   bool isPublic;
 
-  ServerAddressePublic213({
+  ServerAddress({
     required this.macAddr,
     required this.version,
     required this.addr,
@@ -131,8 +138,8 @@ class ServerAddressePublic213 {
     required this.isPublic,
   });
 
-  factory ServerAddressePublic213.fromJson(Map<String, dynamic> json) {
-    return ServerAddressePublic213(
+  factory ServerAddress.fromJson(Map<String, dynamic> json) {
+    return ServerAddress(
       macAddr: json['mac_addr'],
       version: json['version'],
       addr: json['addr'],
