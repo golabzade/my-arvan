@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../models/cloud_provider.dart';
 import '../models/region.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/unified_api_service.dart';
 import '../widgets/status_badge.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,8 +16,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final StorageService _storageService = StorageService();
-  final ApiService _apiService = ApiService();
+  final UnifiedApiService _apiService = UnifiedApiService();
 
+  CloudProvider _activeProvider = CloudProvider.arvanCloud;
   bool _isLoading = false;
   String? _errorMessage;
   RegionList _regionList = const RegionList(data: []);
@@ -33,9 +36,14 @@ class _HomeScreenState extends State<HomeScreen> {
       _errorMessage = null;
     });
 
-    final apiKey = await _storageService.getApiKey();
+    final provider = await _storageService.getActiveProvider();
+    final apiKey = await _storageService.getApiKey(provider);
 
     if (!mounted) return;
+
+    setState(() {
+      _activeProvider = provider;
+    });
 
     if (apiKey == null || apiKey.isEmpty) {
       setState(() {
@@ -46,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      final regionList = await _apiService.fetchRegions(apiKey);
+      final regionList = await _apiService.fetchRegions(provider, apiKey);
       if (!mounted) return;
       setState(() {
         _regionList = regionList;
@@ -67,6 +75,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _switchProvider(CloudProvider newProvider) async {
+    if (newProvider == _activeProvider) return;
+    await _storageService.setActiveProvider(newProvider);
+    _fetchData();
+  }
+
   List<Region> get _filteredRegions {
     if (_searchQuery.isEmpty) return _regionList.data;
     final query = _searchQuery.toLowerCase();
@@ -84,12 +98,58 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ArvanCloud Datacenters'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Datacenters',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              _activeProvider.displayName,
+              style: const TextStyle(fontSize: 12, color: Colors.blueAccent),
+            ),
+          ],
+        ),
         actions: [
+          PopupMenuButton<CloudProvider>(
+            icon: const Icon(Icons.swap_horiz),
+            tooltip: 'Switch Cloud Provider',
+            onSelected: _switchProvider,
+            itemBuilder: (context) => CloudProvider.values.map((p) {
+              return PopupMenuItem<CloudProvider>(
+                value: p,
+                child: Row(
+                  children: [
+                    Icon(
+                      p == CloudProvider.arvanCloud
+                          ? Icons.cloud_outlined
+                          : Icons.cloud_queue,
+                      color: p == _activeProvider ? Colors.blue : Colors.grey,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      p.displayName,
+                      style: TextStyle(
+                        fontWeight: p == _activeProvider
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: p == _activeProvider ? Colors.blue : null,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
-            onPressed: () => Navigator.pushNamed(context, '/settings'),
+            onPressed: () async {
+              await Navigator.pushNamed(context, '/settings');
+              _fetchData();
+            },
           ),
         ],
       ),
@@ -169,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 _searchQuery.isNotEmpty
                     ? 'No datacenters match "$_searchQuery"'
-                    : 'No Datacenters Found',
+                    : 'No Datacenters Found for ${_activeProvider.displayName}',
                 style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 24),
@@ -190,6 +250,9 @@ class _HomeScreenState extends State<HomeScreen> {
       itemCount: regions.length,
       itemBuilder: (context, index) {
         final region = regions[index];
+        final name = region.nameEn.isNotEmpty ? region.nameEn : region.code;
+        final city = region.cityEn.isNotEmpty ? region.cityEn : region.code;
+
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
@@ -214,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    region.nameEn,
+                    name,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -231,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Icon(Icons.location_on_outlined,
                       size: 14, color: Colors.grey),
                   const SizedBox(width: 4),
-                  Text('${region.cityEn} (${region.code.toUpperCase()})'),
+                  Text('$city (${region.code.toUpperCase()})'),
                 ],
               ),
             ),

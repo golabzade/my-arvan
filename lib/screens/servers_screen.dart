@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../models/cloud_provider.dart';
 import '../models/region.dart';
 import '../models/server.dart';
 import '../models/server_with_region.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/unified_api_service.dart';
 import '../widgets/status_badge.dart';
 
 class ServersScreen extends StatefulWidget {
@@ -16,9 +18,10 @@ class ServersScreen extends StatefulWidget {
 
 class _ServersScreenState extends State<ServersScreen> {
   final StorageService _storageService = StorageService();
-  final ApiService _apiService = ApiService();
+  final UnifiedApiService _apiService = UnifiedApiService();
 
   Region? _region;
+  CloudProvider _provider = CloudProvider.arvanCloud;
   bool _isInitialized = false;
   bool _isLoading = false;
   String? _errorMessage;
@@ -48,9 +51,14 @@ class _ServersScreenState extends State<ServersScreen> {
       _errorMessage = null;
     });
 
-    final apiKey = await _storageService.getApiKey();
+    final provider = await _storageService.getActiveProvider();
+    final apiKey = await _storageService.getApiKey(provider);
 
     if (!mounted) return;
+
+    setState(() {
+      _provider = provider;
+    });
 
     if (apiKey == null || apiKey.isEmpty) {
       setState(() {
@@ -61,7 +69,11 @@ class _ServersScreenState extends State<ServersScreen> {
     }
 
     try {
-      final serverList = await _apiService.fetchServers(apiKey, _region!.code);
+      final serverList = await _apiService.fetchServers(
+        provider,
+        apiKey,
+        _region!.code,
+      );
       if (!mounted) return;
       setState(() {
         _serverList = serverList;
@@ -98,7 +110,16 @@ class _ServersScreenState extends State<ServersScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_region != null ? 'DC: ${_region!.nameEn}' : 'Cloud Servers'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_region != null ? 'DC: ${_region!.nameEn.isNotEmpty ? _region!.nameEn : _region!.code}' : 'Servers'),
+            Text(
+              _provider.displayName,
+              style: const TextStyle(fontSize: 12, color: Colors.blueAccent),
+            ),
+          ],
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: _fetchData,

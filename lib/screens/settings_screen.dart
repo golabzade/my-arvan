@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../models/cloud_provider.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/unified_api_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -11,61 +13,95 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final StorageService _storageService = StorageService();
-  final ApiService _apiService = ApiService();
-  final TextEditingController _apiKeyController = TextEditingController();
+  final UnifiedApiService _apiService = UnifiedApiService();
 
-  bool _obscureText = true;
-  bool _isTesting = false;
+  final TextEditingController _arvanApiKeyController = TextEditingController();
+  final TextEditingController _ferdowsiApiKeyController = TextEditingController();
+
+  CloudProvider _activeProvider = CloudProvider.arvanCloud;
+  bool _obscureArvan = true;
+  bool _obscureFerdowsi = true;
+  bool _isTestingArvan = false;
+  bool _isTestingFerdowsi = false;
 
   @override
   void initState() {
     super.initState();
-    _loadApiKey();
+    _loadSettings();
   }
 
   @override
   void dispose() {
-    _apiKeyController.dispose();
+    _arvanApiKeyController.dispose();
+    _ferdowsiApiKeyController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadApiKey() async {
-    final apiKey = await _storageService.getApiKey();
+  Future<void> _loadSettings() async {
+    final active = await _storageService.getActiveProvider();
+    final arvanKey = await _storageService.getApiKey(CloudProvider.arvanCloud);
+    final ferdowsiKey = await _storageService.getApiKey(CloudProvider.ferdowsiCloud);
+
     if (!mounted) return;
-    if (apiKey != null) {
-      _apiKeyController.text = apiKey;
-    }
+
+    setState(() {
+      _activeProvider = active;
+      if (arvanKey != null) _arvanApiKeyController.text = arvanKey;
+      if (ferdowsiKey != null) _ferdowsiApiKeyController.text = ferdowsiKey;
+    });
   }
 
-  Future<void> _saveApiKey() async {
-    final apiKey = _apiKeyController.text.trim();
+  Future<void> _saveActiveProvider(CloudProvider provider) async {
+    await _storageService.setActiveProvider(provider);
+    if (!mounted) return;
+    setState(() {
+      _activeProvider = provider;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Active provider switched to ${provider.displayName}'),
+        backgroundColor: Colors.blue,
+      ),
+    );
+  }
+
+  Future<void> _saveApiKey(CloudProvider provider) async {
+    final controller = provider == CloudProvider.arvanCloud
+        ? _arvanApiKeyController
+        : _ferdowsiApiKeyController;
+    final apiKey = controller.text.trim();
+
     if (apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid API Key'),
+        SnackBar(
+          content: Text('Please enter a valid API Key for ${provider.displayName}'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
 
-    await _storageService.saveApiKey(apiKey);
+    await _storageService.saveApiKey(provider, apiKey);
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('API Key saved successfully!'),
+      SnackBar(
+        content: Text('${provider.displayName} API Key saved!'),
         backgroundColor: Colors.green,
       ),
     );
   }
 
-  Future<void> _testConnection() async {
-    final apiKey = _apiKeyController.text.trim();
+  Future<void> _testConnection(CloudProvider provider) async {
+    final controller = provider == CloudProvider.arvanCloud
+        ? _arvanApiKeyController
+        : _ferdowsiApiKeyController;
+    final apiKey = controller.text.trim();
+
     if (apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter an API key to test'),
+        SnackBar(
+          content: Text('Please enter an API key for ${provider.displayName}'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -73,16 +109,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     setState(() {
-      _isTesting = true;
+      if (provider == CloudProvider.arvanCloud) {
+        _isTestingArvan = true;
+      } else {
+        _isTestingFerdowsi = true;
+      }
     });
 
     try {
-      final regions = await _apiService.fetchRegions(apiKey);
+      final regions = await _apiService.fetchRegions(provider, apiKey);
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Connection successful! (${regions.data.length} datacenters found)'),
+          content: Text('${provider.displayName} connection successful! (${regions.data.length} regions)'),
           backgroundColor: Colors.green,
         ),
       );
@@ -105,24 +145,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) {
         setState(() {
-          _isTesting = false;
+          if (provider == CloudProvider.arvanCloud) {
+            _isTestingArvan = false;
+          } else {
+            _isTestingFerdowsi = false;
+          }
         });
       }
     }
-  }
-
-  Future<void> _clearApiKey() async {
-    await _storageService.clearApiKey();
-    if (!mounted) return;
-    setState(() {
-      _apiKeyController.clear();
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('API Key cleared'),
-        backgroundColor: Colors.grey,
-      ),
-    );
   }
 
   @override
@@ -132,83 +162,180 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('Settings'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildActiveProviderCard(),
+            const SizedBox(height: 16),
+            _buildProviderConfigCard(
+              provider: CloudProvider.arvanCloud,
+              controller: _arvanApiKeyController,
+              isObscure: _obscureArvan,
+              isTesting: _isTestingArvan,
+              onToggleObscure: () => setState(() => _obscureArvan = !_obscureArvan),
+            ),
+            const SizedBox(height: 16),
+            _buildProviderConfigCard(
+              provider: CloudProvider.ferdowsiCloud,
+              controller: _ferdowsiApiKeyController,
+              isObscure: _obscureFerdowsi,
+              isTesting: _isTestingFerdowsi,
+              onToggleObscure: () => setState(() => _obscureFerdowsi = !_obscureFerdowsi),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveProviderCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Active Cloud Provider',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Select which cloud platform to view datacenters and manage virtual machines.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            SegmentedButton<CloudProvider>(
+              segments: const [
+                ButtonSegment(
+                  value: CloudProvider.arvanCloud,
+                  label: Text('ArvanCloud'),
+                  icon: Icon(Icons.cloud_outlined),
+                ),
+                ButtonSegment(
+                  value: CloudProvider.ferdowsiCloud,
+                  label: Text('Ferdowsi Cloud'),
+                  icon: Icon(Icons.cloud_queue),
+                ),
+              ],
+              selected: {_activeProvider},
+              onSelectionChanged: (newSelection) {
+                _saveActiveProvider(newSelection.first);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProviderConfigCard({
+    required CloudProvider provider,
+    required TextEditingController controller,
+    required bool isObscure,
+    required bool isTesting,
+    required VoidCallback onToggleObscure,
+  }) {
+    final isActive = _activeProvider == provider;
+
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isActive ? const Color(0xFF0066FF) : const Color(0xFFE2E8F0),
+          width: isActive ? 2 : 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                const Text(
-                  'ArvanCloud API Settings',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Icon(
+                  provider == CloudProvider.arvanCloud
+                      ? Icons.cloud_outlined
+                      : Icons.cloud_queue,
+                  color: const Color(0xFF0066FF),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Get your API token from your ArvanCloud User Panel under API Key settings.',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                const SizedBox(width: 8),
+                Text(
+                  '${provider.displayName} API Key',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _apiKeyController,
-                  obscureText: _obscureText,
-                  decoration: InputDecoration(
-                    labelText: 'API Key',
-                    hintText: 'Apikey xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-                    prefixIcon: const Icon(Icons.key),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureText ? Icons.visibility : Icons.visibility_off,
+                if (isActive) ...[
+                  const Spacer(),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withAlpha(25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'ACTIVE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureText = !_obscureText;
-                        });
-                      },
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0066FF),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                ]
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              obscureText: isObscure,
+              decoration: InputDecoration(
+                labelText: 'API Key',
+                hintText: provider == CloudProvider.arvanCloud
+                    ? 'Apikey xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+                    : 'x-api-key xxxxxxxx...',
+                prefixIcon: const Icon(Icons.key),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    isObscure ? Icons.visibility : Icons.visibility_off,
                   ),
-                  onPressed: _saveApiKey,
-                  icon: const Icon(Icons.save),
-                  label: const Text('Save API Key', style: TextStyle(fontSize: 16)),
+                  onPressed: onToggleObscure,
                 ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0066FF),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => _saveApiKey(provider),
+                    icon: const Icon(Icons.save, size: 18),
+                    label: const Text('Save'),
                   ),
-                  onPressed: _isTesting ? null : _testConnection,
-                  icon: _isTesting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.wifi_tethering),
-                  label: const Text('Test Connection'),
                 ),
-                const SizedBox(height: 12),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.redAccent,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: isTesting ? null : () => _testConnection(provider),
+                    icon: isTesting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.wifi_tethering, size: 18),
+                    label: const Text('Test'),
                   ),
-                  onPressed: _clearApiKey,
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Clear API Key'),
                 ),
               ],
             ),
-          ),
+          ],
         ),
       ),
     );

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../models/cloud_provider.dart';
 import '../models/region.dart';
 import '../models/server.dart';
 import '../models/server_with_region.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/unified_api_service.dart';
 import '../widgets/status_badge.dart';
 
 class ServerDetailsScreen extends StatefulWidget {
@@ -16,10 +18,11 @@ class ServerDetailsScreen extends StatefulWidget {
 
 class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
   final StorageService _storageService = StorageService();
-  final ApiService _apiService = ApiService();
+  final UnifiedApiService _apiService = UnifiedApiService();
 
   Server? _server;
   Region? _region;
+  CloudProvider _provider = CloudProvider.arvanCloud;
   bool _isInitialized = false;
   bool _isLoading = false;
   bool _isActionExecuting = false;
@@ -45,9 +48,14 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
       _isLoading = true;
     });
 
-    final apiKey = await _storageService.getApiKey();
+    final provider = await _storageService.getActiveProvider();
+    final apiKey = await _storageService.getApiKey(provider);
 
     if (!mounted) return;
+
+    setState(() {
+      _provider = provider;
+    });
 
     if (apiKey == null || apiKey.isEmpty) {
       setState(() {
@@ -59,6 +67,7 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
 
     try {
       final updatedServer = await _apiService.fetchServerDetails(
+        provider,
         apiKey,
         _region!.code,
         _server!.id,
@@ -93,7 +102,8 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
     }
   }
 
-  Future<void> _confirmAndExecuteAction(String action, String title, String warningText) async {
+  Future<void> _confirmAndExecuteAction(
+      String action, String title, String warningText) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -106,7 +116,8 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: action == 'terminate' ? Colors.red : Colors.orange,
+              backgroundColor:
+                  action == 'terminate' ? Colors.red : Colors.orange,
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -128,7 +139,8 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
       _isActionExecuting = true;
     });
 
-    final apiKey = await _storageService.getApiKey();
+    final provider = await _storageService.getActiveProvider();
+    final apiKey = await _storageService.getApiKey(provider);
 
     if (!mounted) return;
 
@@ -142,6 +154,7 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
 
     try {
       final response = await _apiService.executeServerAction(
+        provider,
         apiKey,
         _region!.code,
         _server!.id,
@@ -184,7 +197,16 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_server != null ? _server!.name : 'Server Details'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_server != null ? _server!.name : 'Server Details'),
+            Text(
+              _provider.displayName,
+              style: const TextStyle(fontSize: 12, color: Colors.blueAccent),
+            ),
+          ],
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: _fetchData,
@@ -249,7 +271,9 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
                       StatusBadge.fromServerStatus(_server!.status),
                       const SizedBox(width: 8),
                       Text(
-                        _region?.nameEn ?? '',
+                        _region?.nameEn.isNotEmpty == true
+                            ? _region!.nameEn
+                            : (_region?.code ?? ''),
                         style: const TextStyle(
                             fontSize: 12, color: Colors.grey),
                       ),
@@ -282,9 +306,12 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildSpecItem(Icons.memory, 'vCPU', '${_server!.flavor.vcpus} Cores'),
-                _buildSpecItem(Icons.sd_card, 'RAM', '${_server!.flavor.ram} MB'),
-                _buildSpecItem(Icons.storage, 'Disk', '${_server!.flavor.disk} GB'),
+                _buildSpecItem(
+                    Icons.memory, 'vCPU', '${_server!.flavor.vcpus} Cores'),
+                _buildSpecItem(
+                    Icons.sd_card, 'RAM', '${_server!.flavor.ram} MB'),
+                _buildSpecItem(
+                    Icons.storage, 'Disk', '${_server!.flavor.disk} GB'),
               ],
             ),
           ],
@@ -300,7 +327,8 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
         const SizedBox(height: 6),
         Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         const SizedBox(height: 2),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        Text(value,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
       ],
     );
   }
@@ -322,7 +350,8 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
             ),
             const Divider(height: 24),
             if (addresses.isEmpty)
-              const Text('No IP addresses assigned', style: TextStyle(color: Colors.grey))
+              const Text('No IP addresses assigned',
+                  style: TextStyle(color: Colors.grey))
             else
               Column(
                 children: addresses.map((addr) {
@@ -451,18 +480,19 @@ class _ServerDetailsScreenState extends State<ServerDetailsScreen> {
                             'Force hard reboot on server "${_server?.name}"? Data might be lost if unsaved.',
                           ),
                 ),
-                _buildActionButton(
-                  label: 'Terminate',
-                  icon: Icons.delete_forever,
-                  color: Colors.red,
-                  onPressed: _isActionExecuting
-                      ? null
-                      : () => _confirmAndExecuteAction(
-                            'terminate',
-                            'Terminate Server',
-                            'WARNING: This will permanently delete server "${_server?.name}" and all attached volumes. This action CANNOT be undone.',
-                          ),
-                ),
+                if (_provider.supportsTerminate)
+                  _buildActionButton(
+                    label: 'Terminate',
+                    icon: Icons.delete_forever,
+                    color: Colors.red,
+                    onPressed: _isActionExecuting
+                        ? null
+                        : () => _confirmAndExecuteAction(
+                              'terminate',
+                              'Terminate Server',
+                              'WARNING: This will permanently delete server "${_server?.name}" and all attached volumes. This action CANNOT be undone.',
+                            ),
+                  ),
               ],
             ),
           ],
