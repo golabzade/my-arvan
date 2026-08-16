@@ -1,12 +1,12 @@
-import 'package:my_arven/models/region.dart';
-import 'package:my_arven/models/server.dart';
+import 'region.dart';
+import 'server.dart';
 
 class ServerWithRegion {
-  Server? server;
-  Region? region;
-  
-  ServerWithRegion({
-    this.server,
-    this.region,
+  final Server server;
+  final Region region;
+
+  const ServerWithRegion({
+    required this.server,
+    required this.region,
   });
 }

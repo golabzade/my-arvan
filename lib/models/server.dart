@@ -1,35 +1,85 @@
-class ServerList {
-  List<Server> data;
+enum ServerStatus {
+  shelvedOffloaded,
+  active,
+  reboot,
+  shutoff,
+  build,
+  unknown;
 
-  ServerList({
+  @override
+  String toString() {
+    switch (this) {
+      case ServerStatus.shelvedOffloaded:
+        return 'Off (Terminated)';
+      case ServerStatus.shutoff:
+        return 'Off (Stopped)';
+      case ServerStatus.active:
+        return 'Active';
+      case ServerStatus.reboot:
+        return 'Rebooting';
+      case ServerStatus.build:
+        return 'Building';
+      case ServerStatus.unknown:
+        return 'Unknown';
+    }
+  }
+
+  factory ServerStatus.fromString(String? str) {
+    switch (str?.toUpperCase()) {
+      case 'SHELVED_OFFLOADED':
+        return ServerStatus.shelvedOffloaded;
+      case 'SHUTOFF':
+        return ServerStatus.shutoff;
+      case 'ACTIVE':
+        return ServerStatus.active;
+      case 'REBOOT':
+      case 'HARD_REBOOT':
+        return ServerStatus.reboot;
+      case 'BUILD':
+        return ServerStatus.build;
+      default:
+        return ServerStatus.unknown;
+    }
+  }
+}
+
+class ServerList {
+  final List<Server> data;
+
+  const ServerList({
     required this.data,
   });
 
   factory ServerList.fromJson(Map<String, dynamic> json) {
-    Iterable list = json['data'];
-    List<Server> data = list.map((i) => Server.fromJson(i)).toList();
-
-    return ServerList(data: data);
+    final list = json['data'];
+    if (list is List) {
+      final data = list
+          .whereType<Map<String, dynamic>>()
+          .map((i) => Server.fromJson(i))
+          .toList();
+      return ServerList(data: data);
+    }
+    return const ServerList(data: []);
   }
 }
 
 class Server {
-  String id;
-  String name;
-  ServerFlavor flavor;
-  ServerStatus status;
-  ServerImage image;
-  DateTime created;
-  dynamic taskState;
-  String keyName;
-  String arNext;
-  List<dynamic> securityGroups;
-  ServerAddresses addresses;
-  List<dynamic> tags;
-  bool haEnabled;
-  String clusterId;
+  final String id;
+  final String name;
+  final ServerFlavor flavor;
+  final ServerStatus status;
+  final ServerImage image;
+  final DateTime? created;
+  final dynamic taskState;
+  final String keyName;
+  final String arNext;
+  final List<dynamic> securityGroups;
+  final ServerAddresses addresses;
+  final List<dynamic> tags;
+  final bool haEnabled;
+  final String clusterId;
 
-  Server({
+  const Server({
     required this.id,
     required this.name,
     required this.flavor,
@@ -48,89 +98,61 @@ class Server {
 
   factory Server.fromJson(Map<String, dynamic> json) {
     return Server(
-      id: json['id'],
-      name: json['name'],
-      flavor: ServerFlavor.fromJson(json['flavor']),
-      status: ServerStatus.fromString(json['status']),
-      image: ServerImage.fromJson(json['image']),
-      created: DateTime.parse(json['created']),
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      flavor: ServerFlavor.fromJson(
+          json['flavor'] is Map<String, dynamic> ? json['flavor'] : {}),
+      status: ServerStatus.fromString(json['status']?.toString()),
+      image: ServerImage.fromJson(
+          json['image'] is Map<String, dynamic> ? json['image'] : {}),
+      created: json['created'] != null
+          ? DateTime.tryParse(json['created'].toString())
+          : null,
       taskState: json['task_state'],
-      keyName: json['key_name'],
-      arNext: json['ar_next'],
-      securityGroups: json['security_groups'],
-      addresses: ServerAddresses.fromJson(json['addresses']),
-      tags: json['tags'],
-      haEnabled: json['ha_enabled'],
-      clusterId: json['cluster_id'],
+      keyName: json['key_name']?.toString() ?? '',
+      arNext: json['ar_next']?.toString() ?? '',
+      securityGroups:
+          json['security_groups'] is List ? json['security_groups'] : [],
+      addresses: ServerAddresses.fromJson(
+          json['addresses'] is Map<String, dynamic> ? json['addresses'] : {}),
+      tags: json['tags'] is List ? json['tags'] : [],
+      haEnabled: json['ha_enabled'] == true,
+      clusterId: json['cluster_id']?.toString() ?? '',
     );
   }
 }
 
-enum ServerStatus {
-  shelvedOffloaded, active, reboot, shutoff, build;
-  
-  @override
-  String toString() {
-    switch (name) {
-      case 'shelvedOffloaded':
-        return 'Off (Terminated)';
-      case 'shutoff':
-        return 'Off (Stopped)';
-      case 'active':
-        return 'Active';
-      case 'reboot':
-        return 'Reboot';
-      case 'build':
-        return 'Build';
-      default:
-      return 'error on enum ServerStatus.toString()';
-    }
-  }
-
-  factory ServerStatus.fromString(String str) {
-     switch (str) {
-      case 'SHELVED_OFFLOADED':
-        return ServerStatus.shelvedOffloaded;
-      case 'SHUTOFF':
-        return ServerStatus.shutoff;
-      case 'ACTIVE':
-        return ServerStatus.active;
-      case 'REBOOT':
-        return ServerStatus.reboot;
-      case 'BUILD':
-        return ServerStatus.build;
-      default:
-    throw ArgumentError.value(str, "name", "No enum value with that name");
-    }
-  }
-}
-
 class ServerAddresses {
-  List<ServerAddress> data;
+  final List<ServerAddress> data;
 
-  ServerAddresses({
+  const ServerAddresses({
     required this.data,
   });
 
   factory ServerAddresses.fromJson(Map<String, dynamic> json) {
-    List<ServerAddress> data = [];
-    for (String key in json.keys) {
-      data.addAll(json[key].map<ServerAddress>((i) {
-        return ServerAddress.fromJson(i);
-      }).toList());
+    final List<ServerAddress> data = [];
+    for (final key in json.keys) {
+      final value = json[key];
+      if (value is List) {
+        for (final item in value) {
+          if (item is Map<String, dynamic>) {
+            data.add(ServerAddress.fromJson(item));
+          }
+        }
+      }
     }
     return ServerAddresses(data: data);
   }
 }
 
 class ServerAddress {
-  String macAddr;
-  String version;
-  String addr;
-  String type;
-  bool isPublic;
+  final String macAddr;
+  final String version;
+  final String addr;
+  final String type;
+  final bool isPublic;
 
-  ServerAddress({
+  const ServerAddress({
     required this.macAddr,
     required this.version,
     required this.addr,
@@ -140,24 +162,24 @@ class ServerAddress {
 
   factory ServerAddress.fromJson(Map<String, dynamic> json) {
     return ServerAddress(
-      macAddr: json['mac_addr'],
-      version: json['version'],
-      addr: json['addr'],
-      type: json['type'],
-      isPublic: json['is_public'],
+      macAddr: json['mac_addr']?.toString() ?? '',
+      version: json['version']?.toString() ?? '4',
+      addr: json['addr']?.toString() ?? '',
+      type: json['type']?.toString() ?? '',
+      isPublic: json['is_public'] == true,
     );
   }
 }
 
 class ServerFlavor {
-  String id;
-  String name;
-  int ram;
-  String swap;
-  int vcpus;
-  int disk;
+  final String id;
+  final String name;
+  final int ram;
+  final String swap;
+  final int vcpus;
+  final int disk;
 
-  ServerFlavor({
+  const ServerFlavor({
     required this.id,
     required this.name,
     required this.ram,
@@ -168,32 +190,32 @@ class ServerFlavor {
 
   factory ServerFlavor.fromJson(Map<String, dynamic> json) {
     return ServerFlavor(
-      id: json['id'],
-      name: json['name'],
-      ram: json['ram'],
-      swap: json['swap'],
-      vcpus: json['vcpus'],
-      disk: json['disk'],
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      ram: (json['ram'] as num?)?.toInt() ?? 0,
+      swap: json['swap']?.toString() ?? '0',
+      vcpus: (json['vcpus'] as num?)?.toInt() ?? 0,
+      disk: (json['disk'] as num?)?.toInt() ?? 0,
     );
   }
 }
 
 class ServerImage {
-  String id;
-  String name;
-  int minDisk;
-  int minRam;
-  String os;
-  String osVersion;
-  int progress;
-  int size;
-  String status;
-  DateTime created;
-  String username;
-  ServerImageMetadata metadata;
-  List<dynamic> documents;
+  final String id;
+  final String name;
+  final int minDisk;
+  final int minRam;
+  final String os;
+  final String osVersion;
+  final int progress;
+  final int size;
+  final String status;
+  final DateTime? created;
+  final String username;
+  final ServerImageMetadata? metadata;
+  final List<dynamic> documents;
 
-  ServerImage({
+  const ServerImage({
     required this.id,
     required this.name,
     required this.minDisk,
@@ -211,41 +233,45 @@ class ServerImage {
 
   factory ServerImage.fromJson(Map<String, dynamic> json) {
     return ServerImage(
-      id: json['id'],
-      name: json['name'],
-      minDisk: json['min_disk'],
-      minRam: json['min_ram'],
-      os: json['os'],
-      osVersion: json['os_version'],
-      progress: json['progress'],
-      size: json['size'],
-      status: json['status'],
-      created: DateTime.parse(json['created']),
-      username: json['username'],
-      metadata: ServerImageMetadata.fromJson(json['metadata']),
-      documents: json['documents'],
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      minDisk: (json['min_disk'] as num?)?.toInt() ?? 0,
+      minRam: (json['min_ram'] as num?)?.toInt() ?? 0,
+      os: json['os']?.toString() ?? 'ubuntu',
+      osVersion: json['os_version']?.toString() ?? '',
+      progress: (json['progress'] as num?)?.toInt() ?? 0,
+      size: (json['size'] as num?)?.toInt() ?? 0,
+      status: json['status']?.toString() ?? '',
+      created: json['created'] != null
+          ? DateTime.tryParse(json['created'].toString())
+          : null,
+      username: json['username']?.toString() ?? '',
+      metadata: json['metadata'] is Map<String, dynamic>
+          ? ServerImageMetadata.fromJson(json['metadata'])
+          : null,
+      documents: json['documents'] is List ? json['documents'] : [],
     );
   }
 }
 
 class ServerImageMetadata {
-  String arIaCImage;
-  String arVisibility;
-  String hwDiskBus;
-  String hwQemuGuestAgent;
-  String hwVifMultiqueueEnabled;
-  String imageVersion;
-  String os;
-  String osDistro;
-  String osType;
-  String osVersion;
-  String ownerSpecifiedOpenstackObject;
-  String panelName;
-  String sshKey;
-  String sshPassword;
-  String username;
+  final String arIaCImage;
+  final String arVisibility;
+  final String hwDiskBus;
+  final String hwQemuGuestAgent;
+  final String hwVifMultiqueueEnabled;
+  final String imageVersion;
+  final String os;
+  final String osDistro;
+  final String osType;
+  final String osVersion;
+  final String ownerSpecifiedOpenstackObject;
+  final String panelName;
+  final String sshKey;
+  final String sshPassword;
+  final String username;
 
-  ServerImageMetadata({
+  const ServerImageMetadata({
     required this.arIaCImage,
     required this.arVisibility,
     required this.hwDiskBus,
@@ -265,21 +291,22 @@ class ServerImageMetadata {
 
   factory ServerImageMetadata.fromJson(Map<String, dynamic> json) {
     return ServerImageMetadata(
-      arIaCImage: json['arIaCImage'],
-      arVisibility: json['ar_visibility'],
-      hwDiskBus: json['hw_disk_bus'],
-      hwQemuGuestAgent: json['hw_qemu_guest_agent'],
-      hwVifMultiqueueEnabled: json['hw_vif_multiqueue_enabled'],
-      imageVersion: json['imageVersion'],
-      os: json['os'],
-      osDistro: json['os_distro'],
-      osType: json['os_type'],
-      osVersion: json['os_version'],
-      ownerSpecifiedOpenstackObject: json['owner_specified.openstack.object'],
-      panelName: json['panelName'],
-      sshKey: json['ssh_key'],
-      sshPassword: json['ssh_password'],
-      username: json['username'],
+      arIaCImage: json['arIaCImage']?.toString() ?? '',
+      arVisibility: json['ar_visibility']?.toString() ?? '',
+      hwDiskBus: json['hw_disk_bus']?.toString() ?? '',
+      hwQemuGuestAgent: json['hw_qemu_guest_agent']?.toString() ?? '',
+      hwVifMultiqueueEnabled: json['hw_vif_multiqueue_enabled']?.toString() ?? '',
+      imageVersion: json['imageVersion']?.toString() ?? '',
+      os: json['os']?.toString() ?? '',
+      osDistro: json['os_distro']?.toString() ?? '',
+      osType: json['os_type']?.toString() ?? '',
+      osVersion: json['os_version']?.toString() ?? '',
+      ownerSpecifiedOpenstackObject:
+          json['owner_specified.openstack.object']?.toString() ?? '',
+      panelName: json['panelName']?.toString() ?? '',
+      sshKey: json['ssh_key']?.toString() ?? '',
+      sshPassword: json['ssh_password']?.toString() ?? '',
+      username: json['username']?.toString() ?? '',
     );
   }
 }

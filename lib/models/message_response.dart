@@ -1,11 +1,13 @@
 class MessageResponse {
-  String message;
-  
-  MessageResponse({
+  final String message;
+
+  const MessageResponse({
     required this.message,
   });
 
   factory MessageResponse.fromJson(Map<String, dynamic> json) {
-    return MessageResponse(message: json['message']);
+    return MessageResponse(
+      message: json['message']?.toString() ?? 'Action completed successfully.',
+    );
   }
 }

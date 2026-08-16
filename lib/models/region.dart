@@ -1,38 +1,43 @@
 class RegionList {
-  List<Region> data;
+  final List<Region> data;
 
-  RegionList({
+  const RegionList({
     required this.data,
   });
 
   factory RegionList.fromJson(Map<String, dynamic> json) {
-    Iterable list = json['data'];
-    List<Region> data = list.map((i) => Region.fromJson(i)).toList();
-
-    return RegionList(data: data);
+    final list = json['data'];
+    if (list is List) {
+      final data = list
+          .whereType<Map<String, dynamic>>()
+          .map((i) => Region.fromJson(i))
+          .toList();
+      return RegionList(data: data);
+    }
+    return const RegionList(data: []);
   }
 }
 
 class Region {
-  String nameEn;
-  String nameFa;
-  String zoneEn;
-  String zoneFa;
-  String cityEn;
-  String cityFa;
-  String countryEn;
-  String countryFa;
-  String region;
-  String code;
-  dynamic flag;
-  bool volumeBacked;
-  String state;
-  dynamic status;
-  String version;
-  bool defaultDatacenter;
-  String image;
+  final String nameEn;
+  final String nameFa;
+  final String zoneEn;
+  final String zoneFa;
+  final String cityEn;
+  final String cityFa;
+  final String countryEn;
+  final String countryFa;
+  final String region;
+  final String code;
+  final dynamic flag;
+  final bool volumeBacked;
+  final String state;
+  final dynamic status;
+  final String version;
+  final bool defaultDatacenter;
+  final String image;
 
-  Region({
+  const Region({
     required this.nameEn,
     required this.nameFa,
     required this.zoneEn,
@@ -54,23 +59,23 @@ class Region {
 
   factory Region.fromJson(Map<String, dynamic> json) {
     return Region(
-      nameEn: json['name_en'],
-      nameFa: json['name_fa'],
-      zoneEn: json['zone_en'],
-      zoneFa: json['zone_fa'],
-      cityEn: json['city_en'],
-      cityFa: json['city_fa'],
-      countryEn: json['country_en'],
-      countryFa: json['country_fa'],
-      region: json['region'],
-      code: json['code'],
+      nameEn: json['name_en']?.toString() ?? '',
+      nameFa: json['name_fa']?.toString() ?? '',
+      zoneEn: json['zone_en']?.toString() ?? '',
+      zoneFa: json['zone_fa']?.toString() ?? '',
+      cityEn: json['city_en']?.toString() ?? '',
+      cityFa: json['city_fa']?.toString() ?? '',
+      countryEn: json['country_en']?.toString() ?? '',
+      countryFa: json['country_fa']?.toString() ?? '',
+      region: json['region']?.toString() ?? '',
+      code: json['code']?.toString() ?? '',
       flag: json['flag'],
-      volumeBacked: json['volume_backed'],
-      state: json['state'],
+      volumeBacked: json['volume_backed'] == true,
+      state: json['state']?.toString() ?? 'unknown',
       status: json['status'],
-      version: json['version'],
-      defaultDatacenter: json['default_datacenter'],
-      image: json['image'],
+      version: json['version']?.toString() ?? '',
+      defaultDatacenter: json['default_datacenter'] == true,
+      image: json['image']?.toString() ?? '',
     );
   }
 }
