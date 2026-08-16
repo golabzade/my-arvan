@@ -29,7 +29,7 @@ class FerdowsiApiService {
         return {};
       }
       try {
-        return json.decode(decodedBody);
+        return json.decode(decodedBody)['data'];
       } catch (_) {
         return {};
       }
@@ -38,10 +38,14 @@ class FerdowsiApiService {
     String errorMessage = 'Ferdowsi API error (${response.statusCode})';
     try {
       final bodyJson = json.decode(decodedBody);
-      if (bodyJson is Map && bodyJson.containsKey('detail') && bodyJson['detail'] != null) {
-        errorMessage = bodyJson['detail'].toString();
-      } else if (bodyJson is Map && bodyJson.containsKey('message') && bodyJson['message'] != null) {
-        errorMessage = bodyJson['message'].toString();
+      dynamic errorObj = bodyJson;
+      if (bodyJson is Map && bodyJson.containsKey('error')) {
+        errorObj = bodyJson['error'];
+      }
+      if (errorObj is Map && errorObj.containsKey('detail') && errorObj['detail'] != null) {
+        errorMessage = errorObj['detail'].toString();
+      } else if (errorObj is Map && errorObj.containsKey('message') && errorObj['message'] != null) {
+        errorMessage = errorObj['message'].toString();
       }
     } catch (_) {}
 
@@ -109,13 +113,15 @@ class FerdowsiApiService {
     String action,
   ) async {
     // Map actions to Ferdowsi OpenAPI endpoints
-    String endpointAction = action;
-    if (action == 'power-on') endpointAction = 'start';
-    if (action == 'power-off') endpointAction = 'stop';
+    String bodyAction = action;
+    if (action == 'power-on') bodyAction = 'start';
+    if (action == 'power-off') bodyAction = 'stop';
+    if (action == 'reboot') bodyAction = 'soft_reboot';
+    if (action == 'hard-reboot') bodyAction = 'hard_reboot';
 
-    final uri = Uri.parse('$_baseUrl/api/v2/sm/$regionCode/virtual-machines/$serverId/$endpointAction');
+    final uri = Uri.parse('$_baseUrl/api/v2/sm/$regionCode/virtual-machines/$serverId/status');
     try {
-      final response = await http.patch(uri, headers: _buildHeaders(apiKey));
+      final response = await http.patch(uri, headers: _buildHeaders(apiKey), body: json.encode({'action': bodyAction}));
       _processResponse(response);
       return MessageResponse(
         message: 'Ferdowsi VM action "$action" requested successfully.',
